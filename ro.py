@@ -3,6 +3,8 @@ import time
 import random
 
 # -----------------------------
+# UPDATED APP WITH CHRISTMAS BACKGROUND & SECOND MISSION
+# -----------------------------
 # PAGE CONFIG
 # -----------------------------
 st.set_page_config(page_title="Rowan's Christmas Adventure", layout="centered")
@@ -13,7 +15,7 @@ st.set_page_config(page_title="Rowan's Christmas Adventure", layout="centered")
 st.markdown(
     """
     <style>
-        body {background-color: #f8fff4;}
+        body {background: linear-gradient(135deg, #0a5a0a, #b30000);}
         .title-bubble {
             background: linear-gradient(135deg, #ff2e2e, #1fa30a);
             padding: 25px 40px;
@@ -56,8 +58,71 @@ st.markdown(
 st.markdown("<div class='title-bubble'>ROWAN'S CHRISTMAS ADVENTURE 🎄✨</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# ANIMATED STICK FIGURE MISSION
+# MISSION 1 — WALKING ANIMATION
 # -----------------------------
+st.markdown("<div class='mission-box'><h2>Mission 1: Help Rowan Deliver the Christmas Present! 🎁</h2></div>", unsafe_allow_html=True)
+
+st.write("\n")
+
+frames = ["(ʘ‿ʘ)  🚶", "(•‿•)  🚶‍♂️", "(ᵔ◡ᵔ)  🚗💨", "(ᵔ◡ᵔ)  🚗💨💨"]
+
+if "animate" not in st.session_state:
+    st.session_state.animate = False
+if "mission1_done" not in st.session_state:
+    st.session_state.mission1_done = False
+if "mission2_done" not in st.session_state:
+    st.session_state.mission2_done = False
+
+placeholder = st.empty()
+
+if st.button("Start Mission 1!") and not st.session_state.mission1_done:
+    st.session_state.animate = True
+
+if st.session_state.animate and not st.session_state.mission1_done:
+    for i in range(20):
+        placeholder.markdown(f"<div class='stickboy'>{random.choice(frames)}</div>", unsafe_allow_html=True)
+        time.sleep(0.15)
+    placeholder.empty()
+    st.session_state.animate = False
+    st.session_state.mission1_done = True
+    st.success("Mission 1 Complete! 🎉")
+
+# -----------------------------
+# MISSION 2 — FIND THE PRESENT GAME
+# -----------------------------
+st.markdown("<div class='mission-box'><h2>Mission 2: Find the Hidden Christmas Present! 🎄🎁</h2></div>", unsafe_allow_html=True)
+
+if st.session_state.mission1_done:
+    st.write("Three boxes appear. One has the present. Pick the right one!")
+    boxes = ["📦", "📦", "📦"]
+    present_index = random.randint(0, 2)
+
+    choice = st.radio("Which box has the present?", [1, 2, 3])
+
+    if st.button("Check Box"):
+        if choice - 1 == present_index:
+            st.success("You found the present! 🎁✨ Mission 2 Complete!")
+            st.session_state.mission2_done = True
+        else:
+            st.error("Not here! Try again! ❌")
+else:
+    st.info("Complete Mission 1 first!")
+
+# -----------------------------
+# CERTIFICATE
+# -----------------------------
+if st.session_state.mission1_done and st.session_state.mission2_done:
+    st.markdown(
+        """
+        <div class='certificate'>
+            <h1>🎉 Certificate of Christmas Bravery 🎉</h1>
+            <h2>This certifies that <b>Rowan</b></h2>
+            <h3>completed ALL Christmas Adventure Missions!</h3>
+            <p>You delivered the present AND found the hidden gift. Amazing job, hero! 🎁🎄✨</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 st.markdown("<div class='mission-box'><h2>Mission: Help Rowan Deliver the Christmas Present! 🎁</h2></div>", unsafe_allow_html=True)
 
 st.write("\n")
