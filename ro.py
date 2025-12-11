@@ -1,249 +1,344 @@
-# rowan_christmas_game.py
+# rowan_map_game.py
 import streamlit as st
+import streamlit.components.v1 as components
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
-import io
-import base64
-import time
-import os
-import streamlit.components.v1 as components
+import io, time
 
-st.set_page_config(page_title="Rowan's Christmas Adventure — Animated", layout="wide")
+st.set_page_config(page_title="Rowan's Map Adventure", layout="wide")
 
-# ---------- CONFIG ----------
-AVATAR_PATH = "/mnt/data/A_2D_digital_illustration_of_a_young_boy_depicts_h.png"
-# If running locally and your avatar is somewhere else, update that path.
+# ---------- Config: point these to your uploaded files ----------
+MAP_PATH = "/mnt/data/ro_map.avif"            # your uploaded map (preferred)
+GARAGE_PATH = "/mnt/data/ro_garage.jpg"      # garage scene (uploaded)
+AVATAR_PATH = "/mnt/data/A_2D_digital_illustration_of_a_young_boy_depicts_h.png"  # avatar file
 
-# Background images (you can replace these with your own URLs or local files)
-BG_GARAGE = "https://i.imgur.com/Br6sz5Q.png"
-BG_FOREST = "https://i.imgur.com/0Z9QKsD.png"
-BG_ROOFTOP = "https://i.imgur.com/k6k4QNk.png"
+# Fallback placeholder images (online)
+FALLBACK_MAP = "https://i.imgur.com/0Z9QKsD.png"
+FALLBACK_GARAGE = "https://i.imgur.com/Br6sz5Q.png"
+FALLBACK_AVATAR = "https://i.imgur.com/auZfjBw.png"
 
-# Simple action sounds (external urls). If you run offline remove or replace.
+# Sounds (optional)
 SND_BELL = "https://www.myinstants.com/media/sounds/christmas-bells.mp3"
 SND_ENGINE = "https://www.myinstants.com/media/sounds/car-starting.mp3"
 SND_MAGIC = "https://www.myinstants.com/media/sounds/magic-wand-1.mp3"
 
-# ---------- SESSION STATE ----------
-if "scene" not in st.session_state:
-    st.session_state.scene = "intro"
-if "action" not in st.session_state:
-    st.session_state.action = None
-if "last_move" not in st.session_state:
-    st.session_state.last_move = 0  # timestamp for retriggering animation
+# ---------- Path bubbles definition ----------
+# Each bubble: (id, label, percent_x, percent_y, icon_emoji)
+# percent positions are relative to map width/height (0-100)
+BUBBLES = [
+    (1, "Garage", 8, 78, "🚗"),
+    (2, "Candy Forest", 30, 62, "🍬"),
+    (3, "Donkey Hill", 50, 44, "🐵"),
+    (4, "Sleigh Fix", 68, 30, "⚙️"),
+    (5, "Rooftop", 88, 18, "🎁"),
+]
 
-def go(scene, action=None):
-    st.session_state.scene = scene
-    st.session_state.action = action
-    st.session_state.last_move = time.time()
+# ---------- Utils ----------
+def local_url(path):
+    p = Path(path)
+    if p.exists():
+        return f"file://{p.resolve()}"
+    return None
 
-# ---------- Helper: play sound ----------
-def play_sound_html(src, loop=False):
-    loop_attr = "loop" if loop else ""
-    html = f"""<audio autoplay {loop_attr}><source src="{src}" type="audio/mp3"></audio>"""
-    st.components.v1.html(html, height=10)
+def read_query_int(key, default=None):
+    qp = st.experimental_get_query_params()
+    if key in qp and len(qp[key]) > 0:
+        try:
+            return int(qp[key][0])
+        except:
+            return default
+    return default
 
-# ---------- Helper: generate certificate PNG ----------
+def set_query_param(**kwargs):
+    st.experimental_set_query_params(**{k:str(v) for k,v in kwargs.items()})
+
+# certificate generator
 def make_certificate(avatar_path, name="ROWAN"):
-    # Create a simple certificate image programmatically
     W, H = 1200, 800
-    cert = Image.new("RGB", (W, H), (255, 250, 240))
-    draw = ImageDraw.Draw(cert)
-
-    # Draw header
-    draw.rectangle([(0,0),(W,150)], fill=(230,20,80))
-    header_font = ImageFont.load_default()
+    cert = Image.new("RGBA", (W, H), (255,255,255,255))
+    d = ImageDraw.Draw(cert)
+    # fonts
     try:
-        header_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 48)
-        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 72)
-        body_font = ImageFont.truetype("DejaVuSans.ttf", 36)
+        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 64)
+        body_font = ImageFont.truetype("DejaVuSans.ttf", 28)
     except:
         title_font = ImageFont.load_default()
         body_font = ImageFont.load_default()
 
-    draw.text((40, 45), "🎄 CHRISTMAS HERO AWARD 🎄", fill="white", font=title_font)
+    # header
+    d.rectangle([(0,0),(W,160)], fill=(200,30,80))
+    d.text((40,40), "🎄 CHRISTMAS HERO AWARD 🎄", fill="white", font=title_font)
 
-    # Insert avatar (left)
+    # avatar
     try:
-        avatar = Image.open(avatar_path).convert("RGBA")
-        avatar = avatar.resize((320, 320), Image.LANCZOS)
-        cert.paste(avatar, (60, 200), avatar)
+        av = Image.open(avatar_path).convert("RGBA")
+        av = av.resize((320,320), Image.LANCZOS)
+        cert.paste(av, (60,200), av)
     except Exception as e:
-        draw.rectangle([(60,200),(380,520)], outline="black")
-        draw.text((80,320), "Avatar\nmissing", fill="black", font=body_font)
+        d.rectangle([(60,200),(380,520)], outline="black")
+        d.text((80,320), "Avatar\nmissing", fill="black", font=body_font)
 
-    # Text area (right)
-    draw.text((420, 230), f"This certificate is proudly awarded to:", fill=(30,30,30), font=body_font)
-    draw.text((420, 300), f"⭐ {name} ⭐", fill=(10,70,180), font=title_font)
-    draw.text((420, 420), "For bravely helping Santa,\nrescuing the reindeer,\nfixing the sleigh,\nand saving Christmas!", fill=(30,30,30), font=body_font)
+    # text
+    d.text((420,220), f"This certificate is proudly awarded to:", fill=(30,30,30), font=body_font)
+    d.text((420,300), f"⭐ {name} ⭐", fill=(10,70,180), font=title_font)
+    d.text((420,420), "For bravely helping Santa,\nrescuing the reindeer,\nfixing the sleigh,\nand saving Christmas!", fill=(30,30,30), font=body_font)
+    d.text((420,620), "Santa Claus 🎅", fill=(80,0,0), font=body_font)
 
-    # Footer signature
-    draw.text((420, 620), "Santa Claus 🎅", fill=(80,0,0), font=body_font)
-    return cert
-
-def pil_image_to_bytes(img, fmt="PNG"):
     buf = io.BytesIO()
-    img.save(buf, format=fmt)
+    cert.save(buf, format="PNG")
     buf.seek(0)
     return buf
 
-# ---------- Game Layout ----------
-st.markdown("<h1 style='text-align:center;'>🎄 Rowan's Christmas Adventure — Animated</h1>", unsafe_allow_html=True)
+# ---------- Session state ----------
+if "completed" not in st.session_state:
+    # completed bubbles list (start with bubble 1 unlocked)
+    st.session_state.completed = {1: True}
+    st.session_state.current_mission = None
 
-left, right = st.columns([2,1])
+# ---------- Map rendering (HTML) ----------
+# map sources (prefer local uploaded files)
+map_src = local_url(MAP_PATH) or FALLBACK_MAP
+avatar_src = local_url(AVATAR_PATH) or FALLBACK_AVATAR
 
-with left:
-    # Scene rendering area
-    scene = st.session_state.scene
+# read mission param (if user clicked a bubble link like ?mission=2)
+selected = read_query_int("mission", default=None)
+if selected:
+    st.session_state.current_mission = selected
 
-    # Determine background & text
-    if scene == "intro":
-        st.image(BG_GARAGE, use_column_width=True)
-        st.markdown("### It's Christmas Eve! Santa's sleigh needs help. Ready to be Rowan the hero?")
-        if st.button("Start the Adventure! 🎅✨"):
-            play_sound_html(SND_BELL)
-            go("garage")
-    elif scene == "garage":
-        # Show animated area with avatar and a garage background
-        st.markdown("### Garage — choose a racer and **drive** to the Candy Cane Forest.")
-        # controls
-        car1, car2, car3 = st.columns(3)
-        with car1:
-            st.button("Red Racer 🚗", on_click=lambda: go("forest", action="drive"))
-        with car2:
-            st.button("Green Turbo 🚗", on_click=lambda: go("forest", action="drive"))
-        with car3:
-            st.button("Blue Speedster 🚗", on_click=lambda: go("forest", action="drive"))
-
-        # show the animated garage scene (no need to animate on this screen)
-        st.image(BG_GARAGE, use_column_width=True)
-
-    elif scene == "forest":
-        st.markdown("### Candy Cane Forest — Donkey Kong is here to help! Choose to **walk** with DK or **race** to find the reindeer.")
-        choice1, choice2 = st.columns(2)
-        with choice1:
-            st.button("Walk with Donkey Kong 🐵", on_click=lambda: go("find_reindeer", action="walk"))
-        with choice2:
-            st.button("Drive (fast!) 🚗", on_click=lambda: go("find_reindeer", action="drive"))
-
-        # Render an interactive animated scene where the avatar either walks or drives
-        # We embed HTML/CSS that moves the avatar image across the background when `action` is set.
-        action = st.session_state.action
-        bg = BG_FOREST
-        avatar_url = f"file://{AVATAR_PATH}" if Path(AVATAR_PATH).exists() else ""
-        # unique key to force re-run animation when timestamp changes
-        anim_key = int(st.session_state.last_move)
-
-        html = f"""
-        <div style="position:relative; width:100%; height:420px; background-image:url('{bg}'); background-size:cover; border-radius:8px; overflow:hidden;">
-            <style>
-                .avatar {{
-                    width:160px;
-                    position:absolute;
-                    bottom:20px;
-                    left:20px;
-                    transition: transform 1s linear;
-                }}
-                /* walking animation: small bob + slow move */
-                .walk {{
-                    animation: bob 0.6s ease-in-out infinite;
-                    transform: translateX(420px);
-                }}
-                /* driving animation: faster, smoother */
-                .drive {{
-                    transform: translateX(760px);
-                    transition: transform 2s cubic-bezier(.2,.9,.2,1);
-                }}
-                @keyframes bob {{
-                    0% {{ transform: translateY(0); }}
-                    50% {{ transform: translateY(-10px); }}
-                    100% {{ transform: translateY(0); }}
-                }}
-            </style>
-            <img id="avatar_{anim_key}" class="avatar {'walk' if action=='walk' else ('drive' if action=='drive' else '')}" src="{avatar_url}" />
-        </div>
-        """
-        components.html(html, height=440)
-
-        # Play appropriate sound once after action triggered
-        if action == "walk":
-            play_sound_html(SND_MAGIC)
-        elif action == "drive":
-            play_sound_html(SND_ENGINE)
-
-        st.caption("If the avatar didn't move, press the choice again to retrigger the animation.")
-
-    elif scene == "find_reindeer":
-        st.markdown("### You found the reindeer! Now the sleigh is broken — choose a magical tool to fix it.")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.button("Star Hammer ✨", on_click=lambda: go("sleigh_fixed"))
-        with col2:
-            st.button("Light Blade ⚔️", on_click=lambda: go("sleigh_fixed"))
-        with col3:
-            st.button("Spark Wand 💫", on_click=lambda: go("sleigh_fixed"))
-
-        # show the forest background
-        st.image(BG_FOREST, use_column_width=True)
-
-    elif scene == "sleigh_fixed":
-        st.markdown("### Sleigh Fixed! Fly to deliver the present.")
-        if st.button("Fly to the rooftop 🎁"):
-            play_sound_html(SND_BELL)
-            go("deliver", action="fly")
-        st.image(BG_GARAGE, use_column_width=True)
-
-    elif scene == "deliver":
-        st.markdown("### Deliver the Present — you're almost done!")
-        # show rooftop bg and animate avatar flying across
-        avatar_url = f"file://{AVATAR_PATH}" if Path(AVATAR_PATH).exists() else ""
-        html = f"""
-        <div style="position:relative; width:100%; height:420px; background-image:url('{BG_ROOFTOP}'); background-size:cover; border-radius:8px; overflow:hidden;">
-            <style>
-                .avatarfly {{ width:140px; position:absolute; left: -160px; top: 40px; transform: rotate(-10deg); transition: transform 2s linear, left 2s linear; }}
-                .flyto {{ left: 820px; transform: rotate(0deg); }}
-            </style>
-            <img id="avatar_fly_{int(st.session_state.last_move)}" class="avatarfly {'flyto' if st.session_state.action=='fly' else ''}" src="{avatar_url}" />
-        </div>
-        """
-        components.html(html, height=440)
-        if st.session_state.action == "fly":
-            play_sound_html(SND_MAGIC)
-
-        if st.button("Finish Mission 🎄"):
-            go("ending")
-
-    elif scene == "ending":
-        st.markdown("## 🎉 Hooray — Rowan saved Christmas! ⭐")
-        st.image(BG_ROOFTOP, use_column_width=True)
-        st.write("Santa awards him the **Christmas Hero Medal**!")
-
-        # create certificate image
-        try:
-            cert_img = make_certificate(AVATAR_PATH, name="ROWAN")
-            buf = pil_image_to_bytes(cert_img)
-            st.download_button("Download Rowan’s Certificate (PNG) 🏅", data=buf, file_name="Rowan_Christmas_Certificate.png", mime="image/png")
-        except Exception as e:
-            st.write("Couldn't make certificate automatically (avatar file missing).")
-
-        if st.button("Play Again 🔁"):
-            go("intro")
-
-with right:
-    # Side panel: instructions and avatar preview
-    st.sidebar.title("Game Controls & Tips")
-    st.sidebar.write("""
-    - Click the big choices to trigger animated walk/drive.
-    - If animation doesn't run, press the same choice again to retrigger.
-    - Replace avatar or background images by editing the constants at top of the script.
-    """)
-    if Path(AVATAR_PATH).exists():
-        st.sidebar.image(AVATAR_PATH, caption="Rowan (avatar preview)")
+# Build the HTML for map with clickable bubbles that link to ?mission=N
+# and a moving avatar that animates to the selected bubble using JS.
+bubble_html_parts = []
+for bid, label, px, py, emoji in BUBBLES:
+    locked = not st.session_state.completed.get(bid, False)
+    # If a bubble is locked, add a lock overlay and make it non-clickable
+    if locked:
+        # still render but link to same map (no mission)
+        anchor = "#"
+        bubble_class = "bubble locked"
     else:
-        st.sidebar.write("Avatar image not found at the configured path.")
+        anchor = f"?mission={bid}"
+        bubble_class = "bubble unlocked"
 
-    st.sidebar.markdown("---")
-    st.sidebar.write("Want these enhancements?")
-    st.sidebar.write("- Add richer sprite-sheet walking animation (I can provide).")
-    st.sidebar.write("- Add Lottie/animated vector assets for smoother motion.")
-    st.sidebar.write("- Replace sounds with a background K-Pop instrumental loop (kid-friendly).")
+    # each bubble is positioned with left/top percentages
+    bubble_html_parts.append(
+        f"""<a href="{anchor}" class="{bubble_class}" data-bid="{bid}" title="{label}">
+                <div class="emoji">{emoji}</div>
+                <div class="lbl">{label}</div>
+            </a>"""
+    )
+
+# JS mapping of positions for avatar to animate to
+positions_js_array = ",\n".join([f"{{id:{bid}, x:{px}, y:{py}}}" for bid,_,px,py,_ in BUBBLES])
+
+html = f"""
+<div style="position:relative; width:100%; max-width:1000px; margin:0 auto;">
+  <div id="map" style="position:relative; background-image:url('{map_src}'); background-size:cover; width:100%; padding-top:56.25%; border-radius:16px; box-shadow:0 8px 30px rgba(0,0,0,0.25); overflow:hidden;">
+    <!-- bubbles -->
+    <style>
+      .bubble {{
+        position:absolute;
+        transform:translate(-50%,-50%);
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        text-decoration:none;
+        transition: transform .25s ease, box-shadow .2s;
+        cursor:pointer;
+      }}
+      .bubble .emoji {{
+        width:64px; height:64px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-size:32px; background:linear-gradient(180deg,#fff,#ffd6e0);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+        border: 4px solid rgba(255,255,255,0.6);
+      }}
+      .bubble .lbl {{
+        margin-top:8px; font-weight:600; color:#ffffff; text-shadow:0 2px 6px rgba(0,0,0,0.6);
+        font-size:14px;
+      }}
+      .bubble.unlocked:hover {{ transform:translate(-50%,-60%) scale(1.06); }}
+      .bubble.locked {{ opacity:0.45; filter:grayscale(0.15); cursor:default; }}
+      .bubble.locked .emoji::after {{
+        content: '🔒'; position:absolute; right:-6px; top:-6px; transform:scale(.9);
+      }}
+
+      /* avatar */
+      .avatar {{
+        position:absolute; width:120px; height:120px; transform:translate(-50%,-50%);
+        transition: left 1s cubic-bezier(.2,.9,.2,1), top 1s cubic-bezier(.2,.9,.2,1), transform .6s;
+        will-change:left,top;
+        pointer-events:none;
+      }}
+      .sparkle {{
+        position:absolute; width:40px; height:40px; border-radius:50%;
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,0) 40%);
+        filter:blur(4px); opacity:0.9;
+        transform:translate(-50%,-50%) scale(.6);
+        animation: pop 1.1s ease-out infinite;
+      }}
+      @keyframes pop {{
+        0% {{ transform:translate(-50%,-50%) scale(.6); opacity:0.0; }}
+        50% {{ transform:translate(-50%,-50%) scale(1.1); opacity:1.0; }}
+        100% {{ transform:translate(-50%,-50%) scale(.6); opacity:0.0; }}
+      }}
+    </style>
+
+    <!-- inject bubbles with inline positions -->
+    <div id="bubbles_container">
+    """
+
+# Now append bubble elements with inline styles for positions
+for (bid, label, px, py, emoji) in BUBBLES:
+    locked = not st.session_state.completed.get(bid, False)
+    anchor = "#" if locked else f"?mission={bid}"
+    cls = "locked" if locked else "unlocked"
+    html += f"""
+    <a href="{anchor}" class="bubble {cls}" style="left:{px}%; top:{py}%;" data-bid="{bid}">
+      <div class="emoji">{emoji}</div>
+      <div class="lbl">{label}</div>
+    </a>
+    """
+
+# avatar element - initial position: bubble 1
+initial_bubble = 1
+for b in BUBBLES:
+    if b[0] == initial_bubble:
+        initx, inity = b[2], b[3]
+        break
+
+html += f"""
+    </div>
+
+    <img id="avatar" class="avatar" src="{avatar_src}" style="left:{initx}%; top:{inity}%;"/>
+  </div>
+</div>
+
+<script>
+  const positions = [{positions_js_array}];
+  // find selected mission from query param
+  function getParam(name) {{
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name);
+  }}
+  const sel = getParam('mission');
+  if (sel) {{
+    const id = parseInt(sel);
+    const p = positions.find(x => x.id===id);
+    if (p) {{
+      // move avatar
+      const avatar = document.getElementById('avatar');
+      // tiny delay to ensure CSS and layout computed
+      setTimeout(()=> {{
+        avatar.style.left = p.x + '%';
+        avatar.style.top = p.y + '%';
+        // small scale animation
+        avatar.style.transform = 'translate(-50%,-50%) scale(1.03)';
+        setTimeout(()=> avatar.style.transform = 'translate(-50%,-50%) scale(1)', 800);
+      }}, 120);
+    }}
+  }}
+</script>
+"""
+
+# Render the interactive map component
+components.html(html, height=600, scrolling=True)
+
+# ---------- Right pane: mission details and logic ----------
+st.markdown("## Rowan's Christmas Path")
+col1, col2 = st.columns([3,1])
+
+with col1:
+    st.write("Click any unlocked bubble on the map to go to that mission.")
+    # Show mission panel based on selected mission in query params
+    mission = st.session_state.current_mission
+    if mission is None:
+        st.info("No mission selected. Start by clicking the first bubble (Garage).")
+    else:
+        st.markdown(f"### Mission {mission}: {dict((b[0],b[1]) for b in BUBBLES)[mission]}")
+        # Simple mission screens
+        if mission == 1:
+            # garage mission
+            img_src = local_url(GARAGE_PATH) or FALLBACK_GARAGE
+            st.image(img_src, use_column_width=True)
+            st.write("Rowan jumps into the Red Racer to search for the missing reindeer.")
+            if st.button("Complete Garage mission (find the racer)"):
+                st.session_state.completed[1] = True
+                # unlock bubble 2
+                st.session_state.completed[2] = True
+                st.success("Garage mission complete! Candy Forest unlocked.")
+                # Clear query param so clicking will retrigger animation next time
+                set_query_param()
+                time.sleep(.2)
+                st.experimental_rerun()
+
+        elif mission == 2:
+            st.image(local_url(MAP_PATH) or FALLBACK_MAP, use_column_width=True)
+            st.write("Candy Cane Forest — choose to walk with Donkey Kong or race.")
+            c1, c2 = st.columns(2)
+            if c1.button("Walk with Donkey Kong (complete)"):
+                st.session_state.completed[2] = True
+                st.session_state.completed[3] = True
+                st.success("Donkey Hill unlocked!")
+                set_query_param()
+                st.experimental_rerun()
+            if c2.button("Drive (fast) — complete"):
+                st.session_state.completed[2] = True
+                st.session_state.completed[3] = True
+                st.success("Donkey Hill unlocked!")
+                set_query_param()
+                st.experimental_rerun()
+
+        elif mission == 3:
+            st.image(local_url(MAP_PATH) or FALLBACK_MAP, use_column_width=True)
+            st.write("Donkey Hill — Rowan teams with DK and finds a clue for the sleigh.")
+            if st.button("Complete Donkey Hill"):
+                st.session_state.completed[3] = True
+                st.session_state.completed[4] = True
+                st.success("Sleigh Fix unlocked!")
+                set_query_param()
+                st.experimental_rerun()
+
+        elif mission == 4:
+            st.image(local_url(MAP_PATH) or FALLBACK_MAP, use_column_width=True)
+            st.write("Sleigh Fix — pick a tool to fix Santa’s sleigh.")
+            c1, c2, c3 = st.columns(3)
+            if c1.button("Star Hammer"):
+                st.session_state.completed[4] = True
+                st.session_state.completed[5] = True
+                st.success("Rooftop unlocked!")
+                set_query_param()
+                st.experimental_rerun()
+            if c2.button("Light Blade"):
+                st.session_state.completed[4] = True
+                st.session_state.completed[5] = True
+                st.success("Rooftop unlocked!")
+                set_query_param()
+                st.experimental_rerun()
+            if c3.button("Spark Wand"):
+                st.session_state.completed[4] = True
+                st.session_state.completed[5] = True
+                st.success("Rooftop unlocked!")
+                set_query_param()
+                st.experimental_rerun()
+
+        elif mission == 5:
+            st.image(local_url(MAP_PATH) or FALLBACK_MAP, use_column_width=True)
+            st.write("Rooftop — deliver the present!")
+            if st.button("Deliver Present — Finish Adventure"):
+                st.session_state.completed[5] = True
+                st.success("You saved Christmas 🎉")
+                # create certificate and offer download
+                buf = make_certificate(AVATAR_PATH if Path(AVATAR_PATH).exists() else FALLBACK_AVATAR, name="ROWAN")
+                st.download_button("Download Rowan's Certificate (PNG)", data=buf, file_name="Rowan_Certificate.png", mime="image/png")
+                set_query_param()
+                st.experimental_rerun()
+
+with col2:
+    st.write("Progress")
+    # show bubble list with lock/unlock
+    for bid, label, px, py, emoji in BUBBLES:
+        unlocked = st.session_state.completed.get(bid, False)
+        st.markdown(f"- {emoji} **{label}** — {'✅' if unlocked else '🔒'}")
+
+st.markdown("---")
+st.caption("If the map image doesn't render, replace MAP_PATH and GARAGE_PATH constants at the top with your local file paths or with image URLs. The app uses file:// paths when local files exist.")
