@@ -240,31 +240,62 @@ with left:
             st.session_state.stage = "game"
             st.rerun()
 
-    # --------------------------
-    # CATCH SNOWFLAKES
-    # --------------------------
-    elif st.session_state.stage == "catch":
-        st.markdown("<div style='text-align:center;font-size:4rem;'>❄️ Catch Snowflakes!</div>", unsafe_allow_html=True)
-        st.markdown(kid_msg("Catch 3 giant snowflakes!", "☃️"), unsafe_allow_html=True)
+    # ------------------------------
+# ❄️ REAL FALLING SNOWFLAKE GAME
+# ------------------------------
 
-        if st.button("CATCH ❄️", use_container_width=True):
-            if random.random() < 0.9:
-                st.session_state.caught_count += 1
-                st.success(f"Great job! ❄️ {st.session_state.caught_count}/3 caught!")
-            else:
-                st.info("Almost! Try again!")
+import time
+import random
 
-        if st.session_state.caught_count >= 3:
-            st.session_state.missions_completed["Catch Snowflakes"] = True
-            st.balloons()
-            st.markdown(kid_msg("You caught them all!", "❄️"), unsafe_allow_html=True)
-            if st.button("Back to Missions"):
-                st.session_state.stage = "game"
-                st.rerun()
+def snowflake_catch_game():
+    st.markdown("<h2 style='font-size: 50px; text-align:center;'>❄️ Catch the Falling Snowflakes! ❄️</h2>", unsafe_allow_html=True)
 
-        if st.button("Back"):
-            st.session_state.stage = "game"
+    st.write("Tap the **CATCH!** button when a snowflake reaches the bottom!")
+
+    game_area = st.empty()
+    caught_display = st.empty()
+    catch_button = st.button("❄️ CATCH! ❄️", use_container_width=True)
+    
+    if "flake_y" not in st.session_state:
+        st.session_state.flake_y = 0
+    if "flake_x" not in st.session_state:
+        st.session_state.flake_x = random.randint(0, 10)
+    if "caught" not in st.session_state:
+        st.session_state.caught = 0
+
+    # falling loop
+    for frame in range(50):
+        grid = ""
+        for y in range(10):
+            row = ""
+            for x in range(11):
+                if x == st.session_state.flake_x and y == st.session_state.flake_y:
+                    row += "<span style='font-size:80px;'>❄️</span>"
+                else:
+                    row += "<span style='font-size:80px;'> &nbsp; </span>"
+            grid += row + "<br>"
+        
+        game_area.markdown(grid, unsafe_allow_html=True)
+
+        # Check for catch
+        if catch_button and st.session_state.flake_y == 9:
+            st.session_state.caught += 1
+            caught_display.markdown(f"<h3 style='color:green;'>Caught: {st.session_state.caught}</h3>", unsafe_allow_html=True)
+            # reset flake
+            st.session_state.flake_y = 0
+            st.session_state.flake_x = random.randint(0, 10)
             st.rerun()
+
+        # Move flake
+        st.session_state.flake_y += 1
+        if st.session_state.flake_y > 9:
+            # missed — reset
+            st.session_state.flake_y = 0
+            st.session_state.flake_x = random.randint(0, 10)
+            st.rerun()
+
+        time.sleep(0.15)
+
 
     # --------------------------
     # FIND THE PRESENT
