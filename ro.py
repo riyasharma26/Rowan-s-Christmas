@@ -481,7 +481,7 @@ with right_col:
     st.markdown("<div style='margin-top:16px;text-align:center'>Made with ❤️ for Rowan. Big letters, bright colors — perfect for little hands.</div>", unsafe_allow_html=True)
     if st.button("Reset Game (start over)"):
         reset_game()
-        st.experimental_rerun()
+        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
