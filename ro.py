@@ -1,277 +1,490 @@
-# rowan_christmas_final.py
+# rowans_christmas_adventure.py
+# Rowan's Christmas Adventure
+# Single-file Streamlit app for a 4-year-old mini-game
+# Run: streamlit run rowans_christmas_adventure.py
+
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
-import io, time, math
+import random
+import time
 
-# PAGE
-st.set_page_config(page_title="Rowan's Christmas Adventure", layout="centered")
+st.set_page_config(page_title="Rowan's Christmas Adventure", layout="wide", initial_sidebar_state="collapsed")
 
-# -------------------------
-# CSS / THEME (high contrast)
-# -------------------------
-st.markdown(
-    """
-    <style>
-    /* page background */
-    html, body, [class*="css"]  {
-      background: linear-gradient(180deg, #063b06 0%, #0f7a0f 50%, #7a0b0b 100%) !important;
-      color: #ffffff !important;
-    }
-    /* big bubble title */
-    .title-bubble {
-      width: 94%;
-      margin: 18px auto;
-      padding: 30px 22px;
-      border-radius: 48px;
-      background: radial-gradient(circle at 25% 30%, rgba(255,255,255,0.06), rgba(0,0,0,0.04));
-      border: 6px solid rgba(255,255,255,0.06);
-      text-align: center;
-      font-weight: 900;
-      letter-spacing: 2px;
-      font-size: 44px;
-      color: #fffbe6;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 0 6px rgba(255,255,255,0.02) inset;
-    }
-    /* center panel */
-    .center-box {
-      background: rgba(255,255,255,0.03);
-      border-radius: 16px;
-      padding: 18px;
-      margin: 18px auto;
-      text-align:center;
-      max-width: 980px;
-      color:#fffbe6;
-    }
-    /* mission buttons (bubble-letter style) */
-    .mission-row { display:flex; gap:16px; justify-content:center; margin-top:20px; margin-bottom:6px; flex-wrap:wrap;}
-    .mission-btn {
-      background: linear-gradient(180deg,#22b14c,#15821f);
-      color: #fffbe6;
-      padding: 18px 22px;
-      min-width: 220px;
-      border-radius: 999px;
-      font-weight:900;
-      font-size:18px;
-      border: 4px solid rgba(255,255,255,0.06);
-      box-shadow: 0 8px 30px rgba(0,0,0,0.45);
-    }
-    .mission-btn.red {
-      background: linear-gradient(180deg,#ff4b4b,#b30000);
-    }
-    .mission-btn.locked {
-      opacity: 0.45;
-      transform: scale(0.98);
-      cursor: not-allowed;
-      filter: grayscale(0.05);
-    }
-    .status-line { font-weight:800; color:#fffbe6; margin-top:8px; }
-    .certificate {
-      border-radius: 14px;
-      padding: 18px;
-      background: linear-gradient(180deg,#fffdf2,#e6ffe8);
-      color:#083d08;
-      max-width:920px;
-      margin:18px auto;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
-      text-align:left;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# --------------------------
+# Page styling (big, colorful, no boxes)
+# --------------------------
+PAGE_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bangers&display=swap');
 
-# -------------------------
-# Header
-# -------------------------
-st.markdown('<div class="title-bubble">🎄 ROWAN\'S CHRISTMAS ADVENTURE 🎄</div>', unsafe_allow_html=True)
-st.markdown('<div class="center-box"><h3 style="margin-bottom:6px;color:#fffbe6">Welcome Rowan — complete each mission to save Christmas!</h3><div style="opacity:0.95">Each mission shows a short animation — press Start and watch it play!</div></div>', unsafe_allow_html=True)
+html, body, [data-testid="stAppViewContainer"] > .main {
+  height: 100%;
+  background: radial-gradient(circle at 20% 10%, #f0fff4 0%, #dfffe0 10%, #eaf9ff 30%, #ffefef 100%);
+  font-family: 'Bangers', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
 
-# -------------------------
-# Session state (progress)
-# -------------------------
-if "m1" not in st.session_state:
-    st.session_state.m1 = False
-if "m2" not in st.session_state:
-    st.session_state.m2 = False
-if "m3" not in st.session_state:
-    st.session_state.m3 = False
+/* Make everything centered and full-bleed */
+.main > div {
+  padding: 0rem 1rem 3rem 1rem;
+}
 
-# -------------------------
-# SVG Animation Frames (helpers)
-# -------------------------
-def svg_star_frame(step, w=820, h=240):
-    t = step / 18.0
-    size = 24 + 38 * abs(math.sin(t * math.pi))
-    opacity = 0.35 + 0.65 * abs(math.cos(t * math.pi))
-    svg = f"""
-    <svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="none" rx="12"/>
-      <g transform="translate({w//2},{h//2 - 10})">
-        <circle r="{size*1.9}" fill="rgba(255,240,160,{0.12+0.05*math.sin(t*3)})"/>
-        <polygon points="{0,-size} {size*0.28,-size*0.28} {size*0.98,0} {size*0.28,size*0.28} {0,size} {-size*0.28,size*0.28} {-size*0.98,0} {-size*0.28,-size*0.28}"
-          fill="#ffd84d" stroke="#fff1a8" stroke-width="3" style="opacity:{opacity}" />
-      </g>
-      <text x="50%" y="{h-18}" fill="#fffbe6" font-size="20" text-anchor="middle" font-weight="800">Lighting the Magic Star...</text>
-    </svg>
-    """
-    return svg
+/* Big bubble title */
+.title {
+  font-family: 'Bangers', 'Comic Sans MS', cursive;
+  font-size: 5.2rem;
+  text-align: center;
+  margin: 0.4rem 0 0.2rem 0;
+  color: #7b2a1d;
+  text-shadow: 2px 2px 0 #fff, 6px 6px 0 rgba(0,0,0,0.06);
+}
 
-def svg_car_frame(step, w=820, h=240):
-    t = step / 20.0
-    x = int((w-160) * (step/19.0))
-    bounce = int(6 * math.sin(t*math.pi*2))
-    svg = f"""
-    <svg width="{w}" height="{h}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="none" rx="12"/>
-      <rect x="0" y="{h-40}" width="{w}" height="40" fill="rgba(255,255,255,0.03)"/>
-      <g transform="translate({x},{h-120-bounce})">
-        <rect x="0" y="20" width="140" height="50" rx="14" fill="#ff4b4b" stroke="#fff" stroke-width="3"/>
-        <circle cx="26" cy="78" r="16" fill="#0b0b0b"/>
-        <circle cx="114" cy="78" r="16" fill="#0b0b0b"/>
-        <rect x="20" y="10" width="70" height="30" rx="8" fill="#fff2f2" opacity="0.7"/>
-      </g>
-      <text x="50%" y="24" fill="#fffbe6" font-size="20" text-anchor="middle" font-weight="800">Rowan's Racer — zoom!</text>
-    </svg>
-    """
-    return svg
+/* subtitle */
+.subtitle {
+  text-align: center;
+  font-size: 1.6rem;
+  margin-bottom: 0.6rem;
+  color: #124d1f;
+}
 
-def svg_tree_frame(step, w=820, h=240):
-    t = step / 18.0
-    scale = 0.7 + 0.3 * (step/18.0)
-    lights = ""
-    for i in range(6):
-        angle = i * math.pi/6 - (t*1.8)
-        lx = int((w//2) + math.cos(angle)*(30 + 22*i))
-        ly = int((h//2) + math.sin(angle)*(10 + 14*i))
-        op = 0.25 + 0.75 * abs(math.sin(t*2 + i))
-        lights += f'<circle cx="{lx}" cy="{ly}" r="{5 + (i%2)}" fill="rgba(255,240,110,{op:.2f})" />'
-    svg = f"""
-    <svg width="{w}" height="{h}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="none" rx="12"/>
-      <g transform="translate({w//2},{h//2 + 10}) scale({scale})">
-        <polygon points="0,-86 72,18 -72,18" fill="#0b4b0b" stroke="#2ec24a" stroke-width="3"/>
-        <polygon points="0,-46 55,42 -55,42" fill="#0d6610" stroke="#2ec24a" stroke-width="2"/>
-        <rect x="-12" y="42" width="24" height="36" fill="#6b3a19"/>
-      </g>
-      {lights}
-      <text x="50%" y="{h-12}" fill="#fffbe6" font-size="20" text-anchor="middle" font-weight="800">Light the Christmas Tree!</text>
-    </svg>
-    """
-    return svg
+/* Full-screen game area */
+.game-area {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-top: 0.6rem;
+}
 
-# -------------------------
-# Mission runner (defined BEFORE UI controls)
-# -------------------------
-def run_mission(idx):
-    anim_placeholder = st.empty()
-    steps = 20
-    if idx == 1:
-        for s in range(steps):
-            svg = svg_star_frame(s)
-            anim_placeholder.markdown(svg, unsafe_allow_html=True)
-            time.sleep(0.08)
-        anim_placeholder.empty()
-        st.success("Mission 1 complete — the Star is shining! 🌟")
-        st.session_state.m1 = True
-    elif idx == 2:
-        for s in range(steps):
-            svg = svg_car_frame(s)
-            anim_placeholder.markdown(svg, unsafe_allow_html=True)
-            time.sleep(0.06)
-        anim_placeholder.empty()
-        st.success("Mission 2 complete — Rowan raced to help! 🚗💨")
-        st.session_state.m2 = True
-    elif idx == 3:
-        for s in range(steps):
-            svg = svg_tree_frame(s)
-            anim_placeholder.markdown(svg, unsafe_allow_html=True)
-            time.sleep(0.08)
-        anim_placeholder.empty()
-        st.success("Mission 3 complete — the Tree is lit! 🎄✨")
-        st.session_state.m3 = True
-    # small pause then refresh UI so buttons/ certificate update
-    time.sleep(0.25)
-    st.experimental_rerun()
+/* Left panel big area - no boxes */
+.left {
+  flex: 1;
+  min-height: 540px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
 
-# -------------------------
-# UI: Mission Buttons (bubble-letter text; no images)
-# -------------------------
-st.markdown('<div class="mission-row">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1,1,1])
+/* Right panel for missions list */
+.right {
+  width: 360px;
+  min-height: 420px;
+  border-radius: 22px;
+  padding: 1rem 1.2rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.60));
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
 
-with col1:
-    locked = False  # mission 1 always unlocked
-    cls = "mission-btn" if not locked else "mission-btn locked"
-    st.markdown(f'<div class="{cls}">Mission 1<br><span style="font-size:14px;opacity:0.95">Deliver the Star</span></div>', unsafe_allow_html=True)
-    if not locked and st.button("Start Mission 1"):
-        run_mission(1)
+/* Mission item */
+.mission {
+  font-family: 'Bangers', sans-serif;
+  font-size: 1.35rem;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #fff, #f4fff6);
+}
 
-with col2:
-    locked = not st.session_state.m1
-    cls = "mission-btn red locked" if locked else "mission-btn red"
-    st.markdown(f'<div class="{cls}">Mission 2<br><span style="font-size:14px;opacity:0.95">Drive the Racer</span></div>', unsafe_allow_html=True)
-    if (not locked) and st.button("Start Mission 2"):
-        run_mission(2)
+/* Pulsing for active mission */
+.pulse {
+  animation: pulse 1.4s infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0.05); }
+  70% { transform: scale(1.02); box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0.05); }
+}
 
-with col3:
-    locked = not st.session_state.m2
-    cls = "mission-btn locked" if locked else "mission-btn"
-    st.markdown(f'<div class="{cls}">Mission 3<br><span style="font-size:14px;opacity:0.95">Light the Tree</span></div>', unsafe_allow_html=True)
-    if (not locked) and st.button("Start Mission 3"):
-        run_mission(3)
+/* Big round buttons */
+.big-btn {
+  font-size: 2rem;
+  padding: 18px 28px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.12);
+  transition: transform .12s;
+  font-family: 'Bangers', sans-serif;
+}
+.big-btn:active { transform: translateY(2px); }
 
-st.markdown('</div>', unsafe_allow_html=True)
+/* Tree area */
+.tree {
+  width: 380px;
+  height: 480px;
+  border-radius: 22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position: relative;
+}
 
-# -------------------------
-# Progress / Certificate
-# -------------------------
-st.markdown("<hr style='border:1px solid rgba(255,255,255,0.06)'/>", unsafe_allow_html=True)
+/* Snowflake animation */
+.snowflake {
+  position: absolute;
+  top: -10%;
+  font-size: 2.2rem;
+  animation: fall linear infinite;
+  opacity: .9;
+  filter: drop-shadow(0 4px 4px rgba(0,0,0,0.12));
+}
+@keyframes fall {
+  0% { transform: translateY(-10vh) rotate(0deg); }
+  100% { transform: translateY(110vh) rotate(360deg); }
+}
 
-if st.session_state.m1 and st.session_state.m2 and st.session_state.m3:
-    st.markdown('<div class="center-box"><h2 style="color:#fffbe6">All missions complete! 🎉</h2><div style="color:#fffbe6; font-weight:800">Download Rowan\'s Certificate below.</div></div>', unsafe_allow_html=True)
+/* Confetti celebration */
+.confetti {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+.confetti i {
+  position: absolute;
+  font-style: normal;
+  animation: confetti-fall linear infinite;
+  transform-origin: center;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(540deg); opacity: 0.6; }
+}
 
-    # certificate creation
-    def draw_rowan(size=260):
-        img = Image.new("RGBA", (size, size), (255,255,255,0))
-        d = ImageDraw.Draw(img)
-        c = size//2
-        d.ellipse((c-30, 14, c+30, 72), fill=(247,210,154), outline=(60,30,10))
-        d.pieslice((c-36, 4, c+36, 68), start=180, end=360, fill=(116,75,40))
-        d.line((c, 76, c, 150), fill=(10,10,10), width=6)
-        d.line((c, 92, c-36, 120), fill=(10,10,10), width=6)
-        d.line((c, 92, c+36, 120), fill=(10,10,10), width=6)
-        d.line((c, 150, c-28, 200), fill=(10,10,10), width=6)
-        d.line((c, 150, c+28, 200), fill=(10,10,10), width=6)
-        return img
+/* Present buttons */
+.present {
+  font-size: 2.4rem;
+  padding: 10px 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  border: none;
+}
 
-    def make_certificate(name="ROWAN"):
-        W, H = 1200, 800
-        cert = Image.new("RGB", (W, H), (255, 255, 255))
-        draw = ImageDraw.Draw(cert)
-        # header
-        draw.rectangle([(0,0),(W,160)], fill=(180,20,20))
-        try:
-            tf1 = ImageFont.truetype("DejaVuSans-Bold.ttf", 56)
-            tf2 = ImageFont.truetype("DejaVuSans.ttf", 32)
-        except:
-            tf1 = ImageFont.load_default()
-            tf2 = ImageFont.load_default()
-        draw.text((W//2, 36), "🎄 CHRISTMAS HERO AWARD 🎄", font=tf1, fill=(255,245,230), anchor="mm")
-        avatar = draw_rowan(300)
-        cert.paste(avatar, (60, 220), avatar)
-        draw.text((420, 240), "This certificate is proudly awarded to", font=tf2, fill=(30,30,30))
-        draw.text((420, 300), f"⭐ {name} ⭐", font=tf1, fill=(10,80,20))
-        draw.text((420, 380), "For completing the Christmas Adventure — delivering the star,\nracing the sleigh, and lighting the tree!", font=tf2, fill=(40,40,40))
-        draw.text((420, 520), "Santa Claus 🎅", font=tf2, fill=(130,0,0))
-        draw.rectangle([(10,10),(W-10,H-10)], outline=(10,80,20), width=8)
-        buf = io.BytesIO()
-        cert.save(buf, format="PNG")
-        buf.seek(0)
-        return buf
+/* small helper text */
+.hint {
+  text-align:center;
+  font-size:1.25rem;
+  margin-top: 0.6rem;
+  color:#3b3b3b;
+}
 
-    cert_buf = make_certificate("ROWAN")
-    st.download_button("📜 Download Rowan's Certificate (PNG)", data=cert_buf, file_name="Rowan_Christmas_Certificate.png", mime="image/png")
-else:
-    st.markdown('<div class="center-box"><div style="font-weight:800;color:#fffbe6">Progress</div><div style="margin-top:8px;color:#fffbe6">Mission 1: ' + ('✅' if st.session_state.m1 else '❌') + '</div><div style="color:#fffbe6">Mission 2: ' + ('✅' if st.session_state.m2 else '❌') + '</div><div style="color:#fffbe6">Mission 3: ' + ('✅' if st.session_state.m3 else '❌') + '</div></div>', unsafe_allow_html=True)
+/* Hide Streamlit's default header & footer */
+header, footer {visibility: hidden;}
+</style>
+"""
 
-st.caption("All animations are inline SVG frames — no external images. Buttons lock in order; certificate appears only when all missions are done.")
+st.markdown(PAGE_CSS, unsafe_allow_html=True)
+
+# --------------------------
+# Helper functions & state
+# --------------------------
+if "stage" not in st.session_state:
+    st.session_state.stage = "welcome"  # welcome, game, decorate, catch, find, finished
+if "ornaments" not in st.session_state:
+    # three ornaments to place
+    st.session_state.ornaments = {"red": False, "blue": False, "gold": False}
+if "caught_count" not in st.session_state:
+    st.session_state.caught_count = 0
+if "find_choice" not in st.session_state:
+    st.session_state.find_choice = None
+if "missions_completed" not in st.session_state:
+    st.session_state.missions_completed = {"Decorate the Tree": False, "Catch Snowflakes": False, "Find the Present": False}
+
+
+def reset_game():
+    st.session_state.stage = "welcome"
+    st.session_state.ornaments = {"red": False, "blue": False, "gold": False}
+    st.session_state.caught_count = 0
+    st.session_state.find_choice = None
+    st.session_state.missions_completed = {"Decorate the Tree": False, "Catch Snowflakes": False, "Find the Present": False}
+
+
+# Small friendly helper for kid feedback
+def kid_msg(text, emoji="✨"):
+    return f"<div style='font-size:1.4rem;text-align:center;margin:8px 0 10px 0;color:#2b2b2b'>{emoji} <b>{text}</b></div>"
+
+# --------------------------
+# Header / Title
+# --------------------------
+st.markdown(f"<div class='title'>Rowan's Christmas Adventure</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='subtitle'>Let's help Rowan celebrate! 🎄 Click the big buttons — it's easy and fun.</div>", unsafe_allow_html=True)
+
+# --------------------------
+# Layout
+# --------------------------
+left_col, right_col = st.columns([3, 1], gap="medium")
+
+with left_col:
+    st.markdown("<div class='left'>", unsafe_allow_html=True)
+
+    # Snowflakes floating across the left area (random positions & speeds)
+    snow_html = "<div style='position:absolute;inset:0;overflow:hidden;'>"
+    for i in range(8):
+        left_pos = random.randint(2, 90)
+        delay = random.uniform(0, 4)
+        dur = random.uniform(6, 14)
+        size = random.choice(["1.2rem", "1.6rem", "2rem", "2.4rem"])
+        snow_html += f"<div class='snowflake' style='left:{left_pos}%; animation-duration:{dur}s; top:-5%; font-size:{size}; animation-delay:{delay}s'>❄️</div>"
+    snow_html += "</div>"
+    st.markdown(snow_html, unsafe_allow_html=True)
+
+    # show content depending on stage
+    if st.session_state.stage == "welcome":
+        # Large start button
+        st.markdown("<div style='text-align:center;margin-top:1.6rem'>", unsafe_allow_html=True)
+        start_clicked = st.button("Start the Adventure! 🎅", key="start", help="Press to begin", on_click=None)
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(kid_msg("Hi Rowan! Let's play three easy missions.", "🎁"), unsafe_allow_html=True)
+        st.markdown("<div class='hint'>Missions are big and simple: <br>Decorate, Catch Snowflakes, Find the Present</div>", unsafe_allow_html=True)
+        if start_clicked:
+            st.session_state.stage = "game"
+            st.experimental_rerun()
+
+    elif st.session_state.stage == "game":
+        # Big friendly mission selection with animated mission effects
+        st.markdown("<div style='display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:6px'>", unsafe_allow_html=True)
+
+        # Button: Decorate the Tree
+        decorate_text = "Decorate the Tree 🌟"
+        decorate_disabled = st.session_state.missions_completed["Decorate the Tree"]
+        decorate_btn = st.button(decorate_text, key="decorate",
+                                 help="Add three ornaments to the tree", disabled=decorate_disabled)
+        # Button: Catch Snowflakes
+        catch_text = "Catch Snowflakes ❄️"
+        catch_disabled = st.session_state.missions_completed["Catch Snowflakes"]
+        catch_btn = st.button(catch_text, key="catch", help="Catch 3 snowflakes", disabled=catch_disabled)
+        # Button: Find the Present
+        find_text = "Find the Present 🎁"
+        find_disabled = st.session_state.missions_completed["Find the Present"]
+        find_btn = st.button(find_text, key="find", help="Pick the right present", disabled=find_disabled)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Start the sub-stage depending on which mission clicked
+        if decorate_btn:
+            st.session_state.stage = "decorate"
+            st.experimental_rerun()
+        if catch_btn:
+            st.session_state.stage = "catch"
+            st.experimental_rerun()
+        if find_btn:
+            st.session_state.stage = "find"
+            st.experimental_rerun()
+
+        # Show progress
+        completed = sum(1 for v in st.session_state.missions_completed.values() if v)
+        st.markdown(f"<div style='text-align:center;margin-top:18px;font-size:1.25rem'>Missions completed: {completed} / 3</div>", unsafe_allow_html=True)
+
+    elif st.session_state.stage == "decorate":
+        st.markdown("<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:10px'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:2.4rem'>🌲 Decorate the tree</div>", unsafe_allow_html=True)
+        st.markdown(kid_msg("Click an ornament to put it on the tree!", "🖐️"), unsafe_allow_html=True)
+
+        # Draw tree (simple emoji tree) + ornaments placed
+        tree_visual = "<div style='text-align:center;margin-top:12px'>"
+        # create simple tree ascii with emoji spots where ornaments go
+        # We'll show three spots: left, middle, right
+        left_spot = "🔴" if st.session_state.ornaments["red"] else "⚪"
+        mid_spot = "🔵" if st.session_state.ornaments["blue"] else "⚪"
+        right_spot = "🟡" if st.session_state.ornaments["gold"] else "⚪"
+
+        tree_visual += "<div style='font-size:5.2rem;line-height:0.8'>"
+        tree_visual += "      🌲<br>"
+        tree_visual += f"    {left_spot}  {mid_spot}  {right_spot}<br>"
+        tree_visual += "      ⭐"
+        tree_visual += "</div></div>"
+        st.markdown(tree_visual, unsafe_allow_html=True)
+
+        # Ornament selection area
+        st.markdown("<div style='display:flex;gap:18px;justify-content:center;margin-top:18px'>", unsafe_allow_html=True)
+        if not st.session_state.ornaments["red"]:
+            if st.button("Put the red ornament 🔴", key="orn_red"):
+                st.session_state.ornaments["red"] = True
+        else:
+            st.markdown("<div style='padding:12px;border-radius:14px;background:transparent;font-size:1.2rem'>Red ✔️</div>", unsafe_allow_html=True)
+
+        if not st.session_state.ornaments["blue"]:
+            if st.button("Put the blue ornament 🔵", key="orn_blue"):
+                st.session_state.ornaments["blue"] = True
+        else:
+            st.markdown("<div style='padding:12px;border-radius:14px;background:transparent;font-size:1.2rem'>Blue ✔️</div>", unsafe_allow_html=True)
+
+        if not st.session_state.ornaments["gold"]:
+            if st.button("Put the gold ornament 🟡", key="orn_gold"):
+                st.session_state.ornaments["gold"] = True
+        else:
+            st.markdown("<div style='padding:12px;border-radius:14px;background:transparent;font-size:1.2rem'>Gold ✔️</div>", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Check if all are placed
+        if all(st.session_state.ornaments.values()):
+            # mark completed and give celebration
+            st.session_state.missions_completed["Decorate the Tree"] = True
+            st.markdown(kid_msg("The tree looks beautiful! Great job, Rowan! 🎉", "🎄"), unsafe_allow_html=True)
+            if st.button("Back to Missions"):
+                st.session_state.stage = "game"
+                st.experimental_rerun()
+
+        # Allow returning
+        if st.button("Back", key="back_from_decorate"):
+            st.session_state.stage = "game"
+            st.experimental_rerun()
+
+    elif st.session_state.stage == "catch":
+        st.markdown("<div style='text-align:center;margin-top:4rem'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:2.6rem'>❄️ Catch Snowflakes</div>", unsafe_allow_html=True)
+        st.markdown(kid_msg("Click the BIG catch button when you see snowflakes! Catch 3 to win.", "👀"), unsafe_allow_html=True)
+
+        # Show animated falling snow area (passive visual)
+        st.markdown("""
+            <div style='width:520px;height:300px;border-radius:18px;margin:12px auto;display:flex;align-items:center;justify-content:center;position:relative;'>
+              <div style='font-size:5rem'>☃️</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # Big catch button
+        catch_clicked = st.button("CATCH! ❄️", key="catch_big")
+        if catch_clicked:
+            # success chance high for a 4-year-old to keep it fun
+            # small random to make it feel interactive
+            got = random.random() < 0.9
+            if got:
+                st.session_state.caught_count += 1
+                st.success(f"Nice! You caught a snowflake. ❄️ Total: {st.session_state.caught_count}/3")
+            else:
+                st.info("Oh no, it slipped! Try again — you can do it!")
+
+            # small pause to let celebration show
+            time.sleep(0.2)
+
+        st.markdown(f"<div style='text-align:center;margin-top:12px;font-size:1.25rem'>Snowflakes caught: <b>{st.session_state.caught_count}</b> / 3</div>", unsafe_allow_html=True)
+
+        if st.session_state.caught_count >= 3:
+            st.session_state.missions_completed["Catch Snowflakes"] = True
+            st.balloons()
+            st.markdown(kid_msg("Amazing! You caught 3 snowflakes! 🎉", "❄️"), unsafe_allow_html=True)
+            if st.button("Back to Missions"):
+                st.session_state.stage = "game"
+                st.experimental_rerun()
+
+        if st.button("Back", key="back_from_catch"):
+            st.session_state.stage = "game"
+            st.experimental_rerun()
+
+    elif st.session_state.stage == "find":
+        st.markdown("<div style='text-align:center;margin-top:2rem'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:2.4rem'>🎁 Find the Present</div>", unsafe_allow_html=True)
+        st.markdown(kid_msg("Pick a present. One has a surprise! Try one.", "🔍"), unsafe_allow_html=True)
+
+        # Show three presents
+        st.markdown("<div style='display:flex;justify-content:center;gap:26px;margin-top:18px'>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns(3)
+        presents = ["🎁", "🎀", "🧸"]
+        # hidden correct present
+        if st.session_state.find_choice is None:
+            correct = random.choice([1, 2, 3])
+            st.session_state._correct_present = correct
+        else:
+            correct = st.session_state._correct_present
+
+        with col1:
+            if st.button(presents[0], key="present1"):
+                st.session_state.find_choice = 1
+        with col2:
+            if st.button(presents[1], key="present2"):
+                st.session_state.find_choice = 2
+        with col3:
+            if st.button(presents[2], key="present3"):
+                st.session_state.find_choice = 3
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # If a choice was made, reveal
+        if st.session_state.find_choice is not None:
+            choice = st.session_state.find_choice
+            if choice == correct:
+                st.session_state.missions_completed["Find the Present"] = True
+                st.balloons()
+                st.markdown(kid_msg("You found the surprise! Yay!! 🎉", "✨"), unsafe_allow_html=True)
+                st.markdown("<div style='text-align:center;margin-top:10px;font-size:1.6rem'>You found a cuddly bear 🧸 and a sticker!</div>", unsafe_allow_html=True)
+                if st.button("Back to Missions"):
+                    st.session_state.stage = "game"
+                    st.experimental_rerun()
+            else:
+                st.markdown(kid_msg("Ooops — not that one. Try another!", "😅"), unsafe_allow_html=True)
+                if st.button("Try again"):
+                    st.session_state.find_choice = None
+                    st.experimental_rerun()
+                if st.button("Back"):
+                    st.session_state.stage = "game"
+                    st.experimental_rerun()
+
+        if st.button("Back to Missions", key="back_from_find"):
+            st.session_state.stage = "game"
+            st.experimental_rerun()
+
+    elif st.session_state.stage == "finished":
+        # Celebration screen (should rarely be directly landed on)
+        st.markdown("<div style='text-align:center;margin-top:3rem'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:3.2rem'>🎉 All Missions Done!</div>", unsafe_allow_html=True)
+        st.balloons()
+        st.markdown(kid_msg("Great job, Rowan! Merry Christmas! 🎄", "🎅"), unsafe_allow_html=True)
+        if st.button("Play again"):
+            reset_game()
+            st.experimental_rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with right_col:
+    # Missions sidebar (shows completion, animated for active mission)
+    st.markdown("<div class='right'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:1.6rem;margin-bottom:6px'>Missions</div>", unsafe_allow_html=True)
+
+    # Display missions with pulse for the next incomplete one
+    for name, done in st.session_state.missions_completed.items():
+        cls = "mission"
+        if not done and not any(not v for v in list(st.session_state.missions_completed.values())[:list(st.session_state.missions_completed.keys()).index(name)]):
+            # this logic attempts to pulse the first incomplete in order
+            cls += " pulse"
+        if done:
+            st.markdown(f"<div class='{cls}'><span style='font-size:1.2rem'>{name}</span><span style='font-size:1.1rem'>✅</span></div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='{cls}'><span style='font-size:1.2rem'>{name}</span><span style='font-size:1.1rem'>•</span></div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:10px;font-size:1.05rem;color:#2b2b2b'>Finished missions will show a check. When all three are done, a big surprise awaits!</div>", unsafe_allow_html=True)
+
+    # If all done, show big celebration and reset option
+    if all(st.session_state.missions_completed.values()):
+        st.markdown("<div style='margin-top:12px;text-align:center'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:1.8rem'>🎊 You finished them all!</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:1.05rem;margin-top:8px'>Press the button to see a celebration for Rowan.</div>", unsafe_allow_html=True)
+        if st.button("Celebrate! 🎉"):
+            # show confetti block (CSS animated)
+            confetti_html = "<div class='confetti'>"
+            colors = ["💚","💚","❤️","💛","💙","💜","💚"]
+            for i in range(24):
+                left = random.randint(2, 95)
+                top = random.randint(-30, 0)
+                dur = random.uniform(3, 9)
+                size = random.choice(["1.2rem", "1.6rem", "2rem", "2.6rem"])
+                emoji = random.choice(colors)
+                confetti_html += f"<i style='left:{left}%;top:{top}vh;font-size:{size};animation-duration:{dur}s'>{emoji}</i>"
+            confetti_html += "</div>"
+            st.markdown(confetti_html, unsafe_allow_html=True)
+            st.session_state.stage = "finished"
+            st.experimental_rerun()
+
+    # Small credits and reset
+    st.markdown("<div style='margin-top:16px;text-align:center'>Made with ❤️ for Rowan. Big letters, bright colors — perfect for little hands.</div>", unsafe_allow_html=True)
+    if st.button("Reset Game (start over)"):
+        reset_game()
+        st.experimental_rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --------------------------
+# End of app
+# --------------------------
